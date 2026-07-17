@@ -19,23 +19,25 @@ type lineMsg string
 type readErrMsg struct{ err error }
 
 type model struct {
-	portName string
-	rules    []colorRule
-	lines    chan string
-	errs     chan error
+	portName  string
+	rules     []colorRule
+	hideRules []*regexp.Regexp
+	showRules []*regexp.Regexp
+	lines     chan string
+	errs      chan error
 
 	all       []string // full raw history, kept for export regardless of the active filter
 	viewport  viewport.Model
 	search    textinput.Model
 	searching bool
-	filter    string // active filter (regex if valid, else plain substring); "" shows everything
+	filter    string // active interactive search filter (regex if valid, else plain substring); "" shows everything that passes hide/show
 	paused    bool
 	status    string
 	ready     bool
 	quitting  bool
 }
 
-func newModel(portName string, r io.Reader, rules []colorRule, initialFilter string) model {
+func newModel(portName string, r io.Reader, rules []colorRule, hideRules, showRules []*regexp.Regexp, initialFilter string) model {
 	lines := make(chan string, 256)
 	errs := make(chan error, 1)
 	go readLoop(r, lines, errs)
@@ -45,12 +47,14 @@ func newModel(portName string, r io.Reader, rules []colorRule, initialFilter str
 	ti.Prompt = "/"
 
 	return model{
-		portName: portName,
-		rules:    rules,
-		lines:    lines,
-		errs:     errs,
-		search:   ti,
-		filter:   initialFilter,
+		portName:  portName,
+		rules:     rules,
+		hideRules: hideRules,
+		showRules: showRules,
+		lines:     lines,
+		errs:      errs,
+		search:    ti,
+		filter:    initialFilter,
 	}
 }
 
@@ -185,6 +189,9 @@ func (m model) renderVisible() string {
 	}
 	var b strings.Builder
 	for _, line := range m.all {
+		if !visible(line, m.hideRules, m.showRules) {
+			continue
+		}
 		if m.filter != "" {
 			var matched bool
 			if re != nil {

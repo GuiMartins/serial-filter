@@ -27,8 +27,12 @@ func main() {
 		filter       = flag.String("filter", "", "regex to highlight in yellow (shorthand for -color regex=yellow)")
 		onlyMatching = flag.Bool("only-matching", false, "start with the view filtered to -filter matches only")
 		colorFlags   stringSlice
+		hideFlags    stringSlice
+		showFlags    stringSlice
 	)
-	flag.Var(&colorFlags, "color", "regex=color highlight rule, repeatable (colors: red, green, yellow, blue, magenta, cyan, white)")
+	flag.Var(&colorFlags, "color", "regex=fg or regex=fg/bg highlight rule, repeatable (colors: red, green, yellow, blue, magenta, cyan, white)")
+	flag.Var(&hideFlags, "hide", "regex; lines matching any -hide rule are never displayed, repeatable")
+	flag.Var(&showFlags, "show", "regex; if any -show rule is given, only lines matching at least one are displayed, repeatable")
 	flag.Parse()
 
 	if *listPorts {
@@ -76,6 +80,21 @@ func main() {
 		os.Exit(1)
 	}
 
+	compile := func(specs []string, flagName string) []*regexp.Regexp {
+		var res []*regexp.Regexp
+		for _, spec := range specs {
+			re, err := regexp.Compile(spec)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "invalid -%s regex %q: %v\n", flagName, spec, err)
+				os.Exit(1)
+			}
+			res = append(res, re)
+		}
+		return res
+	}
+	hideRules := compile(hideFlags, "hide")
+	showRules := compile(showFlags, "show")
+
 	var reader io.Reader
 	if portName == "-" {
 		reader = os.Stdin
@@ -95,7 +114,7 @@ func main() {
 		initialFilter = *filter
 	}
 
-	p := tea.NewProgram(newModel(portName, reader, rules, initialFilter), tea.WithAltScreen())
+	p := tea.NewProgram(newModel(portName, reader, rules, hideRules, showRules, initialFilter), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)

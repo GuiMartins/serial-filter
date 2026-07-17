@@ -24,28 +24,42 @@ var namedColors = map[string]lipgloss.Color{
 }
 
 func namedStyle(name string) lipgloss.Style {
-	c, ok := namedColors[strings.ToLower(name)]
-	if !ok {
-		c = namedColors["yellow"]
-	}
-	return lipgloss.NewStyle().Foreground(c).Bold(true)
+	return lipgloss.NewStyle().Foreground(colorOrYellow(name)).Bold(true)
 }
 
-// parseColorRule parses a "regex=color" spec into a colorRule.
+func colorOrYellow(name string) lipgloss.Color {
+	if c, ok := namedColors[strings.ToLower(name)]; ok {
+		return c
+	}
+	return namedColors["yellow"]
+}
+
+// parseColorRule parses a "regex=fg" or "regex=fg/bg" spec into a colorRule.
 func parseColorRule(spec string) (colorRule, error) {
 	idx := strings.LastIndex(spec, "=")
 	if idx < 0 {
-		return colorRule{}, fmt.Errorf("expected regex=color, got %q", spec)
+		return colorRule{}, fmt.Errorf("expected regex=fg or regex=fg/bg, got %q", spec)
 	}
-	pattern, colorName := spec[:idx], spec[idx+1:]
+	pattern, colorSpec := spec[:idx], spec[idx+1:]
 	re, err := regexp.Compile(pattern)
 	if err != nil {
 		return colorRule{}, fmt.Errorf("invalid regex %q: %w", pattern, err)
 	}
-	if _, ok := namedColors[strings.ToLower(colorName)]; !ok {
-		return colorRule{}, fmt.Errorf("unknown color %q (want one of red, green, yellow, blue, magenta, cyan, white)", colorName)
+
+	fgName, bgName, hasBg := strings.Cut(colorSpec, "/")
+	fg, ok := namedColors[strings.ToLower(fgName)]
+	if !ok {
+		return colorRule{}, fmt.Errorf("unknown color %q (want one of red, green, yellow, blue, magenta, cyan, white)", fgName)
 	}
-	return colorRule{re: re, style: namedStyle(colorName)}, nil
+	style := lipgloss.NewStyle().Foreground(fg).Bold(true)
+	if hasBg {
+		bg, ok := namedColors[strings.ToLower(bgName)]
+		if !ok {
+			return colorRule{}, fmt.Errorf("unknown background color %q (want one of red, green, yellow, blue, magenta, cyan, white)", bgName)
+		}
+		style = style.Background(bg)
+	}
+	return colorRule{re: re, style: style}, nil
 }
 
 // render applies the first matching rule's style to line, if any.
@@ -56,4 +70,24 @@ func render(line string, rules []colorRule) string {
 		}
 	}
 	return line
+}
+
+// visible reports whether line should be displayed given the static
+// hide/show rules: any match against hideRules hides the line, and if
+// showRules is non-empty the line must match at least one of them.
+func visible(line string, hideRules, showRules []*regexp.Regexp) bool {
+	for _, re := range hideRules {
+		if re.MatchString(line) {
+			return false
+		}
+	}
+	if len(showRules) == 0 {
+		return true
+	}
+	for _, re := range showRules {
+		if re.MatchString(line) {
+			return true
+		}
+	}
+	return false
 }
