@@ -16,9 +16,10 @@ import (
 
 func main() {
 	var (
-		listPorts = flag.Bool("list", false, "list available serial ports and exit")
-		baud      = flag.Int("baud", 115200, "baud rate")
-		filter    = flag.String("filter", "", "regex to highlight in the output")
+		listPorts    = flag.Bool("list", false, "list available serial ports and exit")
+		baud         = flag.Int("baud", 115200, "baud rate")
+		filter       = flag.String("filter", "", "regex to highlight in the output")
+		onlyMatching = flag.Bool("only-matching", false, "with -filter, print only lines that match")
 	)
 	flag.Parse()
 
@@ -53,6 +54,10 @@ func main() {
 		}
 		highlight = re
 	}
+	if *onlyMatching && highlight == nil {
+		fmt.Fprintln(os.Stderr, "-only-matching requires -filter")
+		os.Exit(1)
+	}
 
 	mode := &serial.Mode{BaudRate: *baud}
 	port, err := serial.Open(portName, mode)
@@ -65,6 +70,9 @@ func main() {
 	scanner := bufio.NewScanner(port)
 	for scanner.Scan() {
 		line := scanner.Text()
+		if *onlyMatching && !highlight.MatchString(line) {
+			continue
+		}
 		printLine(line, highlight)
 	}
 	if err := scanner.Err(); err != nil && err != io.EOF {

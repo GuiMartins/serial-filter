@@ -13,6 +13,9 @@ serial-filter -list
 
 # connect and stream, highlighting lines that match a regex
 serial-filter -baud 115200 -filter "ERROR|WARN" /dev/ttyUSB0
+
+# only show the lines that match the regex, hiding the rest
+serial-filter -filter "ERROR|WARN" -only-matching /dev/ttyUSB0
 ```
 
 ## Status
