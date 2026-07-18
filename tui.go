@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,6 +36,10 @@ type model struct {
 	status    string
 	ready     bool
 	quitting  bool
+
+	configMode  bool
+	configInput textinput.Model
+	configErr   string
 }
 
 func newModel(portName string, r io.Reader, rules []colorRule, hideRules, showRules []*regexp.Regexp, initialFilter string) model {
@@ -46,15 +51,20 @@ func newModel(portName string, r io.Reader, rules []colorRule, hideRules, showRu
 	ti.Placeholder = "regex or plain text..."
 	ti.Prompt = "/"
 
+	ci := textinput.New()
+	ci.Placeholder = "regex=fg[/bg][:scope]  or  -N to remove rule N"
+	ci.Prompt = "rule> "
+
 	return model{
-		portName:  portName,
-		rules:     rules,
-		hideRules: hideRules,
-		showRules: showRules,
-		lines:     lines,
-		errs:      errs,
-		search:    ti,
-		filter:    initialFilter,
+		portName:    portName,
+		rules:       rules,
+		hideRules:   hideRules,
+		showRules:   showRules,
+		lines:       lines,
+		errs:        errs,
+		search:      ti,
+		filter:      initialFilter,
+		configInput: ci,
 	}
 }
 
@@ -100,6 +110,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport.Height = msg.Height - headerHeight - footerHeight
 		}
 		m.search.Width = msg.Width - 2
+		m.configInput.Width = msg.Width - 2
 		m.viewport.SetContent(m.renderVisible())
 		return m, nil
 
@@ -123,6 +134,44 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		if m.configMode {
+			switch msg.String() {
+			case "esc":
+				m.configMode = false
+				m.configInput.Blur()
+				m.configInput.SetValue("")
+				m.configErr = ""
+				return m, nil
+			case "enter":
+				value := strings.TrimSpace(m.configInput.Value())
+				if value == "" {
+					return m, nil
+				}
+				if rest, ok := strings.CutPrefix(value, "-"); ok {
+					n, err := strconv.Atoi(rest)
+					if err != nil || n < 1 || n > len(m.rules) {
+						m.configErr = fmt.Sprintf("no rule #%s", rest)
+						return m, nil
+					}
+					m.rules = append(m.rules[:n-1], m.rules[n:]...)
+				} else {
+					rule, err := parseColorRule(value)
+					if err != nil {
+						m.configErr = err.Error()
+						return m, nil
+					}
+					m.rules = append(m.rules, rule)
+				}
+				m.configErr = ""
+				m.configInput.SetValue("")
+				m.viewport.SetContent(m.renderVisible())
+				return m, nil
+			}
+			var cmd tea.Cmd
+			m.configInput, cmd = m.configInput.Update(msg)
+			return m, cmd
+		}
+
 		if m.searching {
 			switch msg.String() {
 			case "enter":
@@ -163,6 +212,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.filter = ""
 			m.viewport.SetContent(m.renderVisible())
 			return m, nil
+		case "c":
+			m.configMode = true
+			m.configErr = ""
+			m.configInput.Focus()
+			return m, textinput.Blink
 		case "e":
 			name, err := m.export()
 			if err != nil {
@@ -238,6 +292,9 @@ func (m model) View() string {
 	if m.quitting {
 		return ""
 	}
+	if m.configMode {
+		return m.configView()
+	}
 
 	header := headerStyle.Render(fmt.Sprintf(" %s ", m.portName))
 	if m.paused {
@@ -251,7 +308,7 @@ func (m model) View() string {
 	if m.searching {
 		footer = m.search.View()
 	} else {
-		help := "q quit | p pause/resume | / search history | f clear filter | e export log"
+		help := "q quit | p pause/resume | / search history | f clear filter | c color rules | e export log"
 		if m.status != "" {
 			help = m.status + "  |  " + help
 		}
@@ -259,4 +316,27 @@ func (m model) View() string {
 	}
 
 	return fmt.Sprintf("%s\n%s\n%s", header, m.viewport.View(), footer)
+}
+
+var errStyle = lipgloss.NewStyle().Foreground(namedColors["red"])
+
+func (m model) configView() string {
+	var b strings.Builder
+	b.WriteString(headerStyle.Render(" Color rules ") + "\n\n")
+
+	if len(m.rules) == 0 {
+		b.WriteString(helpStyle.Render("  (none yet)") + "\n")
+	}
+	for i, r := range m.rules {
+		b.WriteString(fmt.Sprintf(" %d. %s\n", i+1, r.style.Render(r.spec)))
+	}
+
+	b.WriteString("\n")
+	b.WriteString(m.configInput.View())
+	b.WriteString("\n")
+	if m.configErr != "" {
+		b.WriteString(errStyle.Render("  "+m.configErr) + "\n")
+	}
+	b.WriteString(helpStyle.Render("  enter regex=fg[/bg][:scope] to add a rule, -N to remove rule N, Esc to close"))
+	return b.String()
 }

@@ -51,13 +51,25 @@ serial-filter -hide "DEBUG" -show "ERROR|WARN" /dev/ttyUSB0
 | `p` | pause / resume the live view (reading continues in the background) |
 | `/` | search the full history (regex, falls back to plain substring) |
 | `f` | clear the active filter |
+| `c` | open the color rules panel |
 | `e` | export the full captured log to `serial-filter-export-<timestamp>.log` |
 | arrows / `pgup` / `pgdn` | scroll |
 
+### Color rules panel
+
+Press `c` to add or remove `-color` rules live, without restarting the
+program. It uses the same syntax as the `-color` flag:
+
+- type `regex=fg[/bg][:scope]` and press Enter to add a rule (e.g.
+  `timeout=red:word`)
+- type `-N` and press Enter to remove rule number `N` from the list shown
+- `Esc` closes the panel; rules you added stay active
+
 ## Status
 
-Core features implemented: multi-rule coloring (foreground + background),
-show/hide filtering rules, scrollback TUI, pause/resume, history search, and
-log export. Not yet implemented: persisting rules in a config file (currently
-CLI flags only), per-rule enable/disable toggle at runtime, and
-reconnect-on-disconnect.
+Core features implemented: multi-rule coloring (foreground + background,
+whole-line or word-only), a live color rules panel, show/hide filtering
+rules, scrollback TUI, pause/resume, history search, and log export. Not yet
+implemented: persisting rules to a file across runs, adding/removing
+`-hide`/`-show` rules from the panel (CLI flags only for now), per-rule
+enable/disable toggle, and reconnect-on-disconnect.

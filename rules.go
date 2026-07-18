@@ -12,7 +12,8 @@ import (
 type colorRule struct {
 	re        *regexp.Regexp
 	style     lipgloss.Style
-	wholeLine bool // true: color the entire line; false: color only the matched text
+	wholeLine bool   // true: color the entire line; false: color only the matched text
+	spec      string // the original "regex=fg[/bg][:scope]" text, kept for display in the rules panel
 }
 
 var namedColors = map[string]lipgloss.Color{
@@ -76,7 +77,7 @@ func parseColorRule(spec string) (colorRule, error) {
 		}
 		style = style.Background(bg)
 	}
-	return colorRule{re: re, style: style, wholeLine: wholeLine}, nil
+	return colorRule{re: re, style: style, wholeLine: wholeLine, spec: spec}, nil
 }
 
 // render colors line according to rules: whole-line rules are checked first

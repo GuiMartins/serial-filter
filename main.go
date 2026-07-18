@@ -65,7 +65,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, "invalid -filter regex:", err)
 			os.Exit(1)
 		}
-		rules = append(rules, colorRule{re: re, style: namedStyle("yellow"), wholeLine: true})
+		rules = append(rules, colorRule{re: re, style: namedStyle("yellow"), wholeLine: true, spec: *filter + "=yellow"})
 	}
 	for _, spec := range colorFlags {
 		r, err := parseColorRule(spec)
