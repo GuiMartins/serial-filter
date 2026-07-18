@@ -30,7 +30,7 @@ func main() {
 		hideFlags    stringSlice
 		showFlags    stringSlice
 	)
-	flag.Var(&colorFlags, "color", "regex=fg or regex=fg/bg highlight rule, repeatable (colors: red, green, yellow, blue, magenta, cyan, white)")
+	flag.Var(&colorFlags, "color", "regex=fg[/bg][:word] highlight rule, repeatable (colors: red, green, yellow, blue, magenta, cyan, white; scope defaults to the whole line, use :word to color only the match)")
 	flag.Var(&hideFlags, "hide", "regex; lines matching any -hide rule are never displayed, repeatable")
 	flag.Var(&showFlags, "show", "regex; if any -show rule is given, only lines matching at least one are displayed, repeatable")
 	flag.Parse()
@@ -65,7 +65,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, "invalid -filter regex:", err)
 			os.Exit(1)
 		}
-		rules = append(rules, colorRule{re: re, style: namedStyle("yellow")})
+		rules = append(rules, colorRule{re: re, style: namedStyle("yellow"), wholeLine: true})
 	}
 	for _, spec := range colorFlags {
 		r, err := parseColorRule(spec)

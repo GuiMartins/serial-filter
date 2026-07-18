@@ -22,6 +22,9 @@ serial-filter -filter "ERROR|WARN" -only-matching /dev/ttyUSB0
 # (useful for testing without hardware)
 serial-filter -color "ERROR=white/red" -color "WARN=yellow" -color "OK=green" -
 
+# only color the word "timeout" itself, leave the rest of the line as-is
+serial-filter -color "timeout=red:word" /dev/ttyUSB0
+
 # never display DEBUG lines, and of what's left only display ERROR/WARN
 serial-filter -hide "DEBUG" -show "ERROR|WARN" /dev/ttyUSB0
 ```
@@ -29,7 +32,10 @@ serial-filter -hide "DEBUG" -show "ERROR|WARN" /dev/ttyUSB0
 ### Highlighting vs. filtering
 
 - `-color` (and its `-filter` shorthand) only **colors** matching lines; it
-  never hides anything.
+  never hides anything. Its full syntax is `regex=fg[/bg][:scope]`: `fg` and
+  `bg` are color names, and `scope` is `line` (default — colors the whole
+  line) or `word` (colors only the matched text). A whole-line rule always
+  wins over a word-scope rule on the same line, regardless of order.
 - `-hide` and `-show` control **visibility**: any line matching a `-hide`
   rule is never displayed; if any `-show` rule is given, only lines matching
   at least one of them are displayed. Both can be repeated and combined with
