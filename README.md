@@ -2,8 +2,8 @@
 
 A cross-platform (Windows, Linux, macOS) serial console for viewing logs from
 embedded hardware, similar in spirit to `minicom` but focused on log viewing:
-connect to a serial port, stream its output, and highlight lines matching a
-filter.
+connect to a serial port, stream its output in a scrollable TUI, colorize
+lines by rule, search the history, and export the captured log.
 
 ## Usage
 
@@ -11,11 +11,65 @@ filter.
 # list available serial ports
 serial-filter -list
 
-# connect and stream, highlighting lines that match a regex
-serial-filter -baud 115200 -filter "ERROR|WARN" /dev/ttyUSB0
+# connect, highlighting ERROR lines in yellow
+serial-filter -baud 115200 -filter "ERROR" /dev/ttyUSB0
+
+# start with the view already filtered to ERROR/WARN lines only
+serial-filter -filter "ERROR|WARN" -only-matching /dev/ttyUSB0
+
+# multiple color rules (first match wins), foreground and background;
+# reads from stdin instead of a serial port when the port name is "-"
+# (useful for testing without hardware)
+serial-filter -color "ERROR=white/red" -color "WARN=yellow" -color "OK=green" -
+
+# only color the word "timeout" itself, leave the rest of the line as-is
+serial-filter -color "timeout=red:word" /dev/ttyUSB0
+
+# never display DEBUG lines, and of what's left only display ERROR/WARN
+serial-filter -hide "DEBUG" -show "ERROR|WARN" /dev/ttyUSB0
 ```
+
+### Highlighting vs. filtering
+
+- `-color` (and its `-filter` shorthand) only **colors** matching lines; it
+  never hides anything. Its full syntax is `regex=fg[/bg][:scope]`: `fg` and
+  `bg` are color names, and `scope` is `line` (default — colors the whole
+  line) or `word` (colors only the matched text). A whole-line rule always
+  wins over a word-scope rule on the same line, regardless of order.
+- `-hide` and `-show` control **visibility**: any line matching a `-hide`
+  rule is never displayed; if any `-show` rule is given, only lines matching
+  at least one of them are displayed. Both can be repeated and combined with
+  `-color` rules on the same or different patterns.
+- The `/` search and `f` clear-filter keybindings act on top of whatever
+  `-hide`/`-show` already let through — they don't override them.
+
+## Keybindings
+
+| Key | Action |
+| --- | --- |
+| `q` / `Ctrl+C` | quit |
+| `p` | pause / resume the live view (reading continues in the background) |
+| `/` | search the full history (regex, falls back to plain substring) |
+| `f` | clear the active filter |
+| `c` | open the color rules panel |
+| `e` | export the full captured log to `serial-filter-export-<timestamp>.log` |
+| arrows / `pgup` / `pgdn` | scroll |
+
+### Color rules panel
+
+Press `c` to add or remove `-color` rules live, without restarting the
+program. It uses the same syntax as the `-color` flag:
+
+- type `regex=fg[/bg][:scope]` and press Enter to add a rule (e.g.
+  `timeout=red:word`)
+- type `-N` and press Enter to remove rule number `N` from the list shown
+- `Esc` closes the panel; rules you added stay active
 
 ## Status
 
-Early scaffold. Planned next steps: colorized rule sets beyond a single
-filter, a full TUI (scrollback, pause/resume), and log export.
+Core features implemented: multi-rule coloring (foreground + background,
+whole-line or word-only), a live color rules panel, show/hide filtering
+rules, scrollback TUI, pause/resume, history search, and log export. Not yet
+implemented: persisting rules to a file across runs, adding/removing
+`-hide`/`-show` rules from the panel (CLI flags only for now), per-rule
+enable/disable toggle, and reconnect-on-disconnect.
